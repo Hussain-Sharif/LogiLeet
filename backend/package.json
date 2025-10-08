@@ -1,0 +1,19 @@
+{
+  "name": "logileet_backend",
+  "version": "1.0.0",
+  "description": "It is a backend for LogiLeet App. Using MERN Stack.",
+  "main": "index.ts",
+  "type": "module",
+  "scripts": {
+    "start": "node index.ts"
+  },
+  "author": "Hussain Sharif",
+  "license": "ISC",
+  "dependencies": {
+    "dotenv": "^17.2.3",
+    "express": "^5.1.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.10"
+  }
+}
