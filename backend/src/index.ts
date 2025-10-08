@@ -1,10 +1,5 @@
-import "dotenv/config"
-import cors from "cors";
-import express from "express";
+import 'dotenv/config' // Once added here it will read .env file at the start of the server top file and we can use it anywhere we wanted to
 
+import connectionDB from './db/connection.js'
 
-const app = express();
-app.use(cors());
-app.use(express.json());
-const port=process.env.PORT || 3000
-app.listen(port, () => console.log("server is running on port",port));
+connectionDB()

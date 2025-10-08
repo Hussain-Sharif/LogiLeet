@@ -1,0 +1,1 @@
+export const DB_NAME="logileet_db" // It can be any name it Mongodb creates a database with this name or connect to existing database
