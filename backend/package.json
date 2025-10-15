@@ -10,7 +10,10 @@
     "start": "node dist/index.js",
     "lint": "biome lint --write ./src",
     "check": "biome check --write ./src",
-    "biome": "biome format --write ./src"
+    "biome": "biome format --write ./src",
+    "seed:vehicles": "tsx src/seeds/seedVehicles.ts",
+    "seed:users": "tsx src/seeds/seedUsers.ts",
+    "seed:all": "npm run seed:users && npm run seed:vehicles"
   },
   "author": "Hussain Sharif",
   "license": "ISC",
