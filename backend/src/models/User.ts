@@ -1,3 +1,4 @@
+// backend/src/models/User.ts
 import mongoose, { Document, Schema } from 'mongoose';
 import bcrypt from 'bcryptjs';
 
@@ -12,29 +13,22 @@ export interface IUser extends Document {
   // Driver-specific fields
   licenseNumber?: string;
   licenseExpiry?: Date;
-  experience?: number; // years of experience
+  vehicleAssigned?: mongoose.Types.ObjectId;
   
-  // Customer-specific fields
-  address?: {
-    street: string;
-    city: string;
-    state: string;
-    zipCode: string;
-    coordinates?: {
-      latitude: number;
-      longitude: number;
-    };
+  // Location for drivers (updated via GPS)
+  currentLocation?: {
+    latitude: number;
+    longitude: number;
+    lastUpdated: Date;
   };
   
-  // Timestamps
-  createdAt: Date;
-  updatedAt: Date;
+  // Customer address
+  address?: string;
   
-  // Methods
   comparePassword(candidatePassword: string): Promise<boolean>;
 }
 
-const userSchema = new Schema<IUser>({
+const UserSchema = new Schema<IUser>({
   name: {
     type: String,
     required: [true, 'Name is required'],
@@ -56,22 +50,18 @@ const userSchema = new Schema<IUser>({
     type: String,
     required: [true, 'Password is required'],
     minlength: [6, 'Password must be at least 6 characters'],
-    select: false // Don't include password in queries by default
+    select: false
   },
   
   phone: {
     type: String,
     required: [true, 'Phone number is required'],
-    trim: true,
-    match: [/^[0-9]{10}$/, 'Please enter a valid 10-digit phone number']
+    match: [/^[6-9]\d{9}$/, 'Please enter a valid Indian phone number']
   },
   
   role: {
     type: String,
-    enum: {
-      values: ['admin', 'driver', 'customer'],
-      message: '{VALUE} is not a valid role'
-    },
+    enum: ['admin', 'driver', 'customer'],
     required: [true, 'Role is required'],
     default: 'customer'
   },
@@ -81,126 +71,47 @@ const userSchema = new Schema<IUser>({
     default: true
   },
   
-  // Driver-specific fields (conditional validation)
+  // Driver-specific fields
   licenseNumber: {
     type: String,
-    trim: true,
-    validate: {
-      validator: function(this: IUser, value: string) {
-        // Required only if role is driver
-        if (this.role === 'driver') {
-          return value && value.length > 0;
-        }
-        return true;
-      },
-      message: 'License number is required for drivers'
-    }
+    required: function(this: IUser) { return this.role === 'driver'; }
   },
   
   licenseExpiry: {
     type: Date,
-    validate: {
-      validator: function(this: IUser, value: Date) {
-        // Required and must be future date if role is driver
-        if (this.role === 'driver') {
-          return value && value > new Date();
-        }
-        return true;
-      },
-      message: 'Valid future license expiry date is required for drivers'
-    }
+    required: function(this: IUser) { return this.role === 'driver'; }
   },
   
-  experience: {
-    type: Number,
-    min: [0, 'Experience cannot be negative'],
-    max: [50, 'Experience cannot exceed 50 years'],
-    validate: {
-      validator: function(this: IUser, value: number) {
-        // Optional for drivers, not applicable for others
-        if (this.role === 'driver') {
-          return value >= 0;
-        }
-        return true;
-      },
-      message: 'Experience must be a positive number for drivers'
-    }
+  vehicleAssigned: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Vehicle',
+    default: null
   },
   
-  // Customer address (optional)
+  currentLocation: {
+    latitude: { type: Number, min: -90, max: 90 },
+    longitude: { type: Number, min: -180, max: 180 },
+    lastUpdated: { type: Date, default: Date.now }
+  },
+  
   address: {
-    street: {
-      type: String,
-      trim: true
-    },
-    city: {
-      type: String,
-      trim: true
-    },
-    state: {
-      type: String,
-      trim: true
-    },
-    zipCode: {
-      type: String,
-      trim: true,
-      match: [/^[0-9]{6}$/, 'Please enter a valid 6-digit zip code']
-    },
-    coordinates: {
-      latitude: {
-        type: Number,
-        min: [-90, 'Latitude must be between -90 and 90'],
-        max: [90, 'Latitude must be between -90 and 90']
-      },
-      longitude: {
-        type: Number,
-        min: [-180, 'Longitude must be between -180 and 180'],
-        max: [180, 'Longitude must be between -180 and 180']
-      }
-    }
+    type: String,
+    maxlength: [200, 'Address cannot exceed 200 characters']
   }
-}, {
-  timestamps: true,
-  toJSON: { virtuals: true },
-  toObject: { virtuals: true }
-});
-
-// Indexes for performance
-userSchema.index({ email: 1 });
-userSchema.index({ role: 1 });
-userSchema.index({ isActive: 1 });
-userSchema.index({ role: 1, isActive: 1 }); // Compound index for active users by role
-
-// Pre-save middleware to hash password
-userSchema.pre('save', async function(next) {
-  // Only hash password if it's modified or new
-  if (!this.isModified('password')) return next();
   
-  try {
-    // Hash password with salt rounds of 12
-    const salt = await bcrypt.genSalt(12);
-    this.password = await bcrypt.hash(this.password, salt);
-    next();
-  } catch (error) {
-    next(error as Error);
-  }
+}, { timestamps: true });
+
+// Password hashing middleware
+UserSchema.pre('save', async function(next) {
+  if (!this.isModified('password')) return next();
+  const salt = await bcrypt.genSalt(12);
+  this.password = await bcrypt.hash(this.password, salt);
+  next();
 });
 
-// Instance method to compare password
-userSchema.methods.comparePassword = async function(candidatePassword: string): Promise<boolean> {
-  return bcrypt.compare(candidatePassword, this.password);
+// Compare password method
+UserSchema.methods.comparePassword = async function(candidatePassword: string): Promise<boolean> {
+  return await bcrypt.compare(candidatePassword, this.password);
 };
 
-// Virtual for full address
-userSchema.virtual('fullAddress').get(function() {
-  if (!this.address) return null;
-  const { street, city, state, zipCode } = this.address;
-  return `${street}, ${city}, ${state} - ${zipCode}`;
-});
-
-// Static method to find active users by role
-userSchema.statics.findActiveByRole = function(role: string) {
-  return this.find({ role, isActive: true });
-};
-
-export const User = mongoose.model<IUser>('User', userSchema);
+export const User = mongoose.model<IUser>('User', UserSchema);
