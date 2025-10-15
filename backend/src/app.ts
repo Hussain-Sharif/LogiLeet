@@ -38,7 +38,7 @@ app.use(cookieParser())
 app.use('/api', routes);
 
 // 404 handler
-app.use('*', (req, res) => {
+app.use('/*splat', (req, res) => {
   res.status(404).json(new ApiResponse(404, null, `Route ${req.originalUrl} not found`));
 });
 
