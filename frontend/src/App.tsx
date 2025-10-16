@@ -10,6 +10,10 @@ import { useAuth } from './store/auth';
 import { Toaster } from 'react-hot-toast';
 import './index.css';
 import type { JSX } from 'react';
+import AppLayout from './components/layout/AppLayout';
+import CreateDelivery from './pages/customer/CreateDelivery';
+import DeliveryDetails from './pages/shared/DeliveryDetails';
+import Deliveries from './pages/admin/Deliveries';
 
 function PrivateRoute({ children, roles }: { children: JSX.Element; roles?: Array<'admin' | 'driver' | 'customer'> }) {
   const user = useAuth((s) => s.user);
@@ -27,27 +31,40 @@ export default function App() {
           <Route path="/login" element={<Login />} />
           
           <Route path="/admin" element={
-            <PrivateRoute roles={['admin']}>
-              <AdminDashboard />
-            </PrivateRoute>
+            <PrivateRoute roles={['admin']}><AppLayout><AdminDashboard /></AppLayout></PrivateRoute>
           } />
-          
           <Route path="/driver" element={
-            <PrivateRoute roles={['driver']}>
-              <DriverDashboard />
-            </PrivateRoute>
+            <PrivateRoute roles={['driver']}><AppLayout><DriverDashboard /></AppLayout></PrivateRoute>
           } />
-          
           <Route path="/customer" element={
-            <PrivateRoute roles={['customer']}>
-              <CustomerDashboard />
-            </PrivateRoute>
+            <PrivateRoute roles={['customer']}><AppLayout><CustomerDashboard /></AppLayout></PrivateRoute>
           } />
+
           
           <Route path="/customer/delivery/:id" element={
             <PrivateRoute roles={['customer', 'admin']}>
               <TrackDelivery />
             </PrivateRoute>
+          } />
+
+          <Route path="/customer/new" element={
+            <PrivateRoute roles={['customer']}>
+              <AppLayout><CreateDelivery /></AppLayout>
+            </PrivateRoute>
+          } />
+
+          <Route path="/customer/delivery/:id" element={
+            <PrivateRoute roles={['customer','admin']}><AppLayout><DeliveryDetails /></AppLayout></PrivateRoute>
+          } />
+          <Route path="/admin/delivery/:id" element={
+            <PrivateRoute roles={['admin']}><AppLayout><DeliveryDetails /></AppLayout></PrivateRoute>
+          } />
+          <Route path="/driver/delivery/:id" element={
+            <PrivateRoute roles={['driver','admin']}><AppLayout><DeliveryDetails /></AppLayout></PrivateRoute>
+          } />
+
+          <Route path="/admin/deliveries" element={
+            <PrivateRoute roles={['admin']}><AppLayout><Deliveries /></AppLayout></PrivateRoute>
           } />
 
           <Route path="/" element={<Navigate to="/login" replace />} />

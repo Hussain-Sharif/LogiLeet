@@ -4,6 +4,7 @@ import authRoutes from './auth.js';
 import vehicleRoutes from './vehicles.js';
 import deliveryRoutes from './deliveries.js';
 import trackingRoutes from './tracking.js';
+import adminRoutes from './admin.js';
 
 const router = Router();
 
@@ -21,5 +22,6 @@ router.use('/auth', authRoutes);
 router.use('/vehicles', vehicleRoutes);
 router.use('/deliveries', deliveryRoutes);
 router.use('/tracking', trackingRoutes);
+router.use('/admin', adminRoutes);
 
 export default router;

@@ -111,29 +111,29 @@ export const validateVehicle = [
 // Delivery validation
 export const validateDelivery = [
   body('pickup.latitude')
-    .isFloat({ min: -90, max: 90 })
+    .isNumeric()
     .withMessage('Pickup latitude must be between -90 and 90'),
   
   body('pickup.longitude')
-    .isFloat({ min: -180, max: 180 })
+    .isNumeric()
     .withMessage('Pickup longitude must be between -180 and 180'),
   
   body('pickup.address')
     .trim()
-    .isLength({ min: 1, max: 500 })
+    .isLength({ min: 1 })
     .withMessage('Pickup address is required and must be less than 500 characters'),
   
   body('dropoff.latitude')
-    .isFloat({ min: -90, max: 90 })
+    .isNumeric()
     .withMessage('Dropoff latitude must be between -90 and 90'),
   
   body('dropoff.longitude')
-    .isFloat({ min: -180, max: 180 })
+    .isNumeric()
     .withMessage('Dropoff longitude must be between -180 and 180'),
   
   body('dropoff.address')
     .trim()
-    .isLength({ min: 1, max: 500 })
+    .isLength({ min: 1})
     .withMessage('Dropoff address is required and must be less than 500 characters'),
   
   body('packageDetails.description')
