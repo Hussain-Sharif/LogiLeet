@@ -8,10 +8,12 @@ import toast from 'react-hot-toast';
 import { useState } from 'react';
 
 export default function DriverDeliveryDetail() {
-  const { id } = useParams();
+ const { id } = useParams();
   const nav = useNavigate();
   const qc = useQueryClient();
   const [notes, setNotes] = useState('');
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [cancelReason, setCancelReason] = useState('');
 
   const { data, isLoading } = useQuery({
     queryKey: ['driver-delivery-detail', id],
@@ -32,7 +34,8 @@ export default function DriverDeliveryDetail() {
       const statusMessages = {
         picked_up: '📦 Package picked up successfully!',
         on_route: '🚚 Journey started - heading to destination',
-        delivered: '✅ Package delivered successfully!'
+        delivered: '✅ Package delivered successfully!',
+        cancelled: '❌ Delivery cancelled'
       };
       
       toast.success(statusMessages[result.delivery.status as keyof typeof statusMessages] || 'Status updated');
@@ -40,7 +43,7 @@ export default function DriverDeliveryDetail() {
       qc.invalidateQueries({ queryKey: ['driver-delivery-detail'] });
       qc.invalidateQueries({ queryKey: ['driver-active'] });
       
-      if (result.delivery.status === 'delivered') {
+      if (result.delivery.status === 'delivered' || result.delivery.status === 'cancelled') {
         setTimeout(() => nav('/driver'), 2000);
       }
     },
@@ -48,6 +51,20 @@ export default function DriverDeliveryDetail() {
       toast.error(e?.response?.data?.message || 'Status update failed');
     }
   });
+
+  const handleCancelDelivery = () => {
+    if (!cancelReason.trim()) {
+      toast.error('Please provide a cancellation reason');
+      return;
+    }
+    
+    updateStatus.mutate({ 
+      status: 'cancelled', 
+      driverNotes: `CANCELLED: ${cancelReason}` 
+    });
+    setShowCancelModal(false);
+    setCancelReason('');
+  };
 
   const liveTracking = useDeliveryTracking(id);
 
@@ -79,7 +96,6 @@ export default function DriverDeliveryDetail() {
 
   const delivery = data.delivery;
   
-  // Ensure we have valid coordinates
   if (!delivery.pickup?.latitude || !delivery.dropoff?.latitude) {
     return (
       <div className="text-center py-12">
@@ -102,6 +118,9 @@ export default function DriverDeliveryDetail() {
     : null;
 
   const routePath = delivery.route?.waypoints || [];
+
+  // Can cancel if status is picked_up or on_route
+  const canCancel = ['picked_up', 'on_route'].includes(delivery.status);
 
   return (
     <div className="space-y-6">
@@ -251,6 +270,7 @@ export default function DriverDeliveryDetail() {
       </div>
 
       {/* Action Buttons */}
+       {/* Action Buttons */}
       <div className="bg-white rounded-lg border p-6">
         <h3 className="font-semibold text-lg mb-4">🎯 Delivery Actions</h3>
         
@@ -272,47 +292,81 @@ export default function DriverDeliveryDetail() {
           )}
 
           {delivery.status === 'picked_up' && (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <div className="mb-3">
-                <div className="font-medium text-blue-800">🚚 Start Journey</div>
-                <div className="text-sm text-blue-600">Begin navigation to dropoff location</div>
+            <>
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div className="mb-3">
+                  <div className="font-medium text-blue-800">🚚 Start Journey</div>
+                  <div className="text-sm text-blue-600">Begin navigation to dropoff location</div>
+                </div>
+                <button 
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white px-6 py-4 rounded-lg font-semibold text-lg transition-colors"
+                  onClick={() => updateStatus.mutate({ status: 'on_route' })}
+                  disabled={updateStatus.isPending}
+                >
+                  {updateStatus.isPending ? '⏳ Starting...' : '🚚 Start Journey to Destination'}
+                </button>
               </div>
-              <button 
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white px-6 py-4 rounded-lg font-semibold text-lg transition-colors"
-                onClick={() => updateStatus.mutate({ status: 'on_route' })}
-                disabled={updateStatus.isPending}
-              >
-                {updateStatus.isPending ? '⏳ Starting...' : '🚚 Start Journey to Destination'}
-              </button>
-            </div>
+              
+              {/* Cancel Option for Picked Up */}
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                <div className="mb-3">
+                  <div className="font-medium text-red-800">❌ Cancel Delivery</div>
+                  <div className="text-sm text-red-600">Cancel this delivery if unable to proceed</div>
+                </div>
+                <button 
+                  className="w-full bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-lg font-medium transition-colors"
+                  onClick={() => setShowCancelModal(true)}
+                  disabled={updateStatus.isPending}
+                >
+                  Cancel Delivery
+                </button>
+              </div>
+            </>
           )}
 
           {delivery.status === 'on_route' && (
-            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-              <div className="mb-4">
-                <div className="font-medium text-green-800">✅ Complete Delivery</div>
-                <div className="text-sm text-green-600">Mark as delivered when package is handed over</div>
+            <>
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                <div className="mb-4">
+                  <div className="font-medium text-green-800">✅ Complete Delivery</div>
+                  <div className="text-sm text-green-600">Mark as delivered when package is handed over</div>
+                </div>
+                
+                <div className="mb-4">
+                  <label className="block text-sm font-medium mb-2">Delivery Notes (Optional)</label>
+                  <textarea
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    placeholder="Add any delivery notes, customer feedback, or special observations..."
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500"
+                    rows={3}
+                  />
+                </div>
+
+                <button 
+                  className="w-full bg-green-600 hover:bg-green-700 text-white px-6 py-4 rounded-lg font-semibold text-lg transition-colors"
+                  onClick={() => updateStatus.mutate({ status: 'delivered', driverNotes: notes })}
+                  disabled={updateStatus.isPending}
+                >
+                  {updateStatus.isPending ? '⏳ Completing...' : '✅ Mark as Delivered'}
+                </button>
               </div>
               
-              <div className="mb-4">
-                <label className="block text-sm font-medium mb-2">Delivery Notes (Optional)</label>
-                <textarea
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  placeholder="Add any delivery notes, customer feedback, or special observations..."
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500"
-                  rows={3}
-                />
+              {/* Cancel Option for On Route */}
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                <div className="mb-3">
+                  <div className="font-medium text-red-800">❌ Cancel Delivery</div>
+                  <div className="text-sm text-red-600">Cancel delivery due to unforeseen circumstances</div>
+                </div>
+                <button 
+                  className="w-full bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-lg font-medium transition-colors"
+                  onClick={() => setShowCancelModal(true)}
+                  disabled={updateStatus.isPending}
+                >
+                  Cancel Delivery
+                </button>
               </div>
-
-              <button 
-                className="w-full bg-green-600 hover:bg-green-700 text-white px-6 py-4 rounded-lg font-semibold text-lg transition-colors"
-                onClick={() => updateStatus.mutate({ status: 'delivered', driverNotes: notes })}
-                disabled={updateStatus.isPending}
-              >
-                {updateStatus.isPending ? '⏳ Completing...' : '✅ Mark as Delivered'}
-              </button>
-            </div>
+            </>
           )}
 
           {delivery.status === 'delivered' && (
@@ -328,8 +382,71 @@ export default function DriverDeliveryDetail() {
               </button>
             </div>
           )}
+
+          {delivery.status === 'cancelled' && (
+            <div className="bg-red-100 border border-red-300 rounded-lg p-6 text-center">
+              <div className="text-4xl mb-4">❌</div>
+              <div className="font-bold text-red-800 text-xl mb-2">Delivery Cancelled</div>
+              <div className="text-red-700 mb-4">This delivery has been cancelled</div>
+              {delivery.driverNotes && (
+                <div className="bg-red-50 p-3 rounded mb-4 text-sm text-red-700">
+                  <strong>Reason:</strong> {delivery.driverNotes.replace('CANCELLED: ', '')}
+                </div>
+              )}
+              <button
+                onClick={() => nav('/driver')}
+                className="bg-red-600 text-white px-6 py-3 rounded-lg hover:bg-red-700"
+              >
+                Return to Dashboard
+              </button>
+            </div>
+          )}
         </div>
       </div>
+
+      {/* Cancel Modal */}
+      {showCancelModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-md w-full p-6">
+            <div className="text-center mb-4">
+              <div className="text-4xl mb-2">⚠️</div>
+              <h3 className="text-lg font-bold text-red-800">Cancel Delivery</h3>
+              <p className="text-sm text-gray-600 mt-2">Please provide a reason for cancellation</p>
+            </div>
+            
+            <div className="mb-4">
+              <label className="block text-sm font-medium mb-2">Cancellation Reason *</label>
+              <textarea
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+                placeholder="e.g., Vehicle breakdown, customer unavailable, package damaged..."
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-red-500"
+                rows={4}
+                required
+              />
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setShowCancelModal(false);
+                  setCancelReason('');
+                }}
+                className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 py-3 rounded-lg font-medium"
+              >
+                Keep Delivery
+              </button>
+              <button
+                onClick={handleCancelDelivery}
+                disabled={!cancelReason.trim() || updateStatus.isPending}
+                className="flex-1 bg-red-600 hover:bg-red-700 text-white py-3 rounded-lg font-medium disabled:opacity-50"
+              >
+                {updateStatus.isPending ? 'Cancelling...' : 'Cancel Delivery'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

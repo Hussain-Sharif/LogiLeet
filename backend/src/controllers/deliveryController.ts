@@ -128,10 +128,8 @@ export const assignDelivery = asyncHandler(async (req: Request, res: Response) =
 
 export const updateDeliveryStatus = asyncHandler(async (req: Request, res: Response) => {
   const { deliveryId } = req.params;
-  const { status, driverNotes } = req.body;
+  const { status, driverNotes, customerNotes } = req.body;
   const userId = req.user?.userId;
-  
-  console.log(`Status update request: ${deliveryId} -> ${status} by user ${userId}`);
   
   const delivery = await Delivery.findById(deliveryId)
     .populate('customerId', 'name email phone')
@@ -141,16 +139,31 @@ export const updateDeliveryStatus = asyncHandler(async (req: Request, res: Respo
     throw new ApiError(404, 'Delivery not found');
   }
   
-  // Authorization check
   const user = await User.findById(userId);
-  if (user?.role !== 'admin' && delivery.driverId?._id.toString() !== userId) {
-    throw new ApiError(403, 'Unauthorized to update this delivery');
+  
+  // Authorization and validation for cancellation
+  if (status === 'cancelled') {
+    if (user?.role === 'customer') {
+      // Customer can only cancel pending deliveries
+      if (delivery.status !== 'pending') {
+        throw new ApiError(400, 'Customers can only cancel pending deliveries');
+      }
+    } else if (user?.role === 'driver') {
+      // Driver can cancel picked_up or on_route deliveries
+      if (!['picked_up', 'on_route'].includes(delivery.status)) {
+        throw new ApiError(400, 'Drivers can only cancel picked up or on-route deliveries');
+      }
+    } else if (user?.role !== 'admin') {
+      throw new ApiError(403, 'Unauthorized to cancel this delivery');
+    }
   }
   
-  // Update delivery with timestamp
+  // Update delivery
   const updateData: any = { status };
   if (driverNotes) updateData.driverNotes = driverNotes;
+  if (customerNotes) updateData.customerNotes = customerNotes;
   
+  // Add timestamps
   switch (status) {
     case 'picked_up':
       updateData.actualPickupTime = new Date();
@@ -163,6 +176,10 @@ export const updateDeliveryStatus = asyncHandler(async (req: Request, res: Respo
       updateData.actualDeliveryTime = new Date();
       updateData.deliveredAt = new Date();
       break;
+    case 'cancelled':
+      updateData.cancelledAt = new Date();
+      updateData.cancelledBy = userId;
+      break;
   }
   
   const updatedDelivery = await Delivery.findByIdAndUpdate(
@@ -171,52 +188,34 @@ export const updateDeliveryStatus = asyncHandler(async (req: Request, res: Respo
     { new: true }
   ).populate('customerId driverId vehicleId', 'name email phone vehicleNumber vehicleBrand vehicleModel');
   
-  // REAL-TIME NOTIFICATIONS
+  // Notifications
   const io = req.app.get('io');
   
-  // Customer notifications
-  if (delivery.customerId) {
-    const customerMessages = {
-      picked_up: '📦 Your package has been picked up by the driver',
-      on_route: '🚚 Your package is now on the way to destination',
-      delivered: '✅ Your package has been delivered successfully!'
-    };
-    
-    const message = customerMessages[status as keyof typeof customerMessages];
-    if (message) {
-      console.log(`Sending notification to customer ${delivery.customerId._id}: ${message}`);
-      
-      io?.to(`user-${delivery.customerId._id}`).emit('delivery-status-updated', {
+  if (status === 'cancelled') {
+    // Notify customer about cancellation
+    if (delivery.customerId) {
+      io?.to(`user-${delivery.customerId._id}`).emit('delivery-cancelled', {
         deliveryId,
-        status,
-        message,
-        delivery: updatedDelivery,
-        timestamp: new Date()
+        message: user?.role === 'customer' ? 'You have cancelled your delivery request' : 
+                user?.role === 'driver' ? 'Your delivery has been cancelled by the driver' : 
+                'Your delivery has been cancelled',
+        reason: driverNotes || customerNotes || 'No reason provided',
+        delivery: updatedDelivery
       });
     }
+    
+    // Notify admin
+    io?.emit('admin-delivery-update', {
+      deliveryId,
+      status: 'cancelled',
+      message: `Delivery #${deliveryId!.slice(-6)} cancelled by ${user?.role}`,
+      delivery: updatedDelivery
+    });
   }
   
-  // Admin notifications
-  io?.emit('admin-delivery-update', {
-    deliveryId,
-    status,
-    message: `Delivery #${deliveryId!.slice(-6)} status updated to ${status}`,
-    delivery: updatedDelivery,
-    timestamp: new Date()
-  });
-  
-  // Broadcast to delivery tracking room
-  io?.to(`delivery-${deliveryId}`).emit('status-update', {
-    deliveryId,
-    status,
-    timestamp: updateData.actualPickupTime || updateData.onRouteAt || updateData.actualDeliveryTime || new Date(),
-    driverNotes
-  });
-  
-  console.log(`Status updated successfully: ${deliveryId} -> ${status}`);
-  
-  res.status(200).json(new ApiResponse(200, { delivery: updatedDelivery }, `Delivery status updated to ${status}`));
+  res.status(200).json(new ApiResponse(200, { delivery: updatedDelivery }, `Delivery ${status}`));
 });
+
 
 
 export const getDeliveries = asyncHandler(async (req: Request, res: Response) => {
