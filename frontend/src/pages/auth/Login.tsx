@@ -78,8 +78,8 @@ export default function Login() {
             {isSubmitting ? 'Signing In...' : 'Sign In'}
           </button>
 
-          <div className="text-center text-sm text-gray-600">
-            Demo Accounts: admin@logileet.com, driver@logileet.com, customer@logileet.com (password: 123456)
+          <div className="text-center text-sm text-gray-600 mt-4">
+            Not Having an account? <Link to="/register" className="text-emerald-700">Register</Link>
           </div>
         </form>
       </div>
