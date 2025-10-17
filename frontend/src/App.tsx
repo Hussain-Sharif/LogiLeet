@@ -67,8 +67,10 @@ export default function App() {
           <Route path="/admin/delivery/:id" element={
             <PrivateRoute roles={['admin']}><AppLayout><AdminDelivery  /></AppLayout></PrivateRoute>
           } />
-          <Route path="/driver/delivery/:id" element={
-            <PrivateRoute roles={['driver','admin']}><AppLayout><DriverDeliveryDetail  /></AppLayout></PrivateRoute>
+         <Route path="/driver/delivery/:id" element={
+            <PrivateRoute roles={['driver']}>
+              <AppLayout><DriverDeliveryDetail /></AppLayout>
+            </PrivateRoute>
           } />
           <Route path="/driver/history" element={
             <PrivateRoute roles={['driver']}>

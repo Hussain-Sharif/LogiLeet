@@ -13,22 +13,28 @@ export default function DriverDeliveryDetail() {
   const qc = useQueryClient();
   const [notes, setNotes] = useState('');
 
-  const { data, isLoading, refetch } = useQuery({
+  const { data, isLoading } = useQuery({
     queryKey: ['driver-delivery-detail', id],
-    queryFn: async () => (await api.get(`/deliveries/${id}`)).data.data,
+    queryFn: async () => {
+      const response = await api.get(`/deliveries/${id}`);
+      return response.data.data;
+    },
     enabled: Boolean(id),
     refetchInterval: 15000
   });
 
   const updateStatus = useMutation({
-    mutationFn: async ({ status, driverNotes }: { status: string; driverNotes?: string }) => 
-      (await api.put(`/deliveries/${id}/status`, { status, driverNotes })).data.data,
+    mutationFn: async ({ status, driverNotes }: { status: string; driverNotes?: string }) => {
+      const response = await api.put(`/deliveries/${id}/status`, { status, driverNotes });
+      return response.data.data;
+    },
     onSuccess: (result) => {
       const statusMessages = {
         picked_up: '📦 Package picked up successfully!',
         on_route: '🚚 Journey started - heading to destination',
         delivered: '✅ Package delivered successfully!'
       };
+      
       toast.success(statusMessages[result.delivery.status as keyof typeof statusMessages] || 'Status updated');
       
       qc.invalidateQueries({ queryKey: ['driver-delivery-detail'] });
@@ -38,32 +44,61 @@ export default function DriverDeliveryDetail() {
         setTimeout(() => nav('/driver'), 2000);
       }
     },
-    onError: (e: any) => toast.error(e?.response?.data?.message || 'Status update failed')
+    onError: (e: any) => {
+      toast.error(e?.response?.data?.message || 'Status update failed');
+    }
   });
 
-  const liveLocation = useDeliveryTracking(id);
+  const liveTracking = useDeliveryTracking(id);
 
-  if (isLoading) return (
-    <div className="flex items-center justify-center py-12">
-      <div className="text-center">
-        <div className="text-4xl mb-4">🔄</div>
-        <div>Loading delivery details...</div>
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="text-center">
+          <div className="animate-spin text-4xl mb-4">🔄</div>
+          <div>Loading delivery details...</div>
+        </div>
       </div>
-    </div>
-  );
+    );
+  }
 
-  if (!data?.delivery) return (
-    <div className="text-center py-12">
-      <div className="text-6xl mb-4">❌</div>
-      <h3 className="text-lg font-medium">Delivery not found</h3>
-    </div>
-  );
+  if (!data?.delivery) {
+    return (
+      <div className="text-center py-12">
+        <div className="text-6xl mb-4">❌</div>
+        <h3 className="text-lg font-medium">Delivery not found</h3>
+        <button 
+          onClick={() => nav('/driver')}
+          className="mt-4 bg-blue-600 text-white px-4 py-2 rounded-lg"
+        >
+          Back to Dashboard
+        </button>
+      </div>
+    );
+  }
 
   const delivery = data.delivery;
+  
+  // Ensure we have valid coordinates
+  if (!delivery.pickup?.latitude || !delivery.dropoff?.latitude) {
+    return (
+      <div className="text-center py-12">
+        <div className="text-6xl mb-4">🗺️</div>
+        <h3 className="text-lg font-medium">Invalid delivery locations</h3>
+        <button 
+          onClick={() => nav('/driver')}
+          className="mt-4 bg-blue-600 text-white px-4 py-2 rounded-lg"
+        >
+          Back to Dashboard
+        </button>
+      </div>
+    );
+  }
+
   const pickup = { lat: delivery.pickup.latitude, lng: delivery.pickup.longitude };
   const dropoff = { lat: delivery.dropoff.latitude, lng: delivery.dropoff.longitude };
-  const driver = liveLocation 
-    ? { lat: liveLocation.latitude, lng: liveLocation.longitude }
+  const driver = liveTracking?.location 
+    ? { lat: liveTracking.location.latitude, lng: liveTracking.location.longitude }
     : null;
 
   const routePath = delivery.route?.waypoints || [];
@@ -75,11 +110,11 @@ export default function DriverDeliveryDetail() {
         <div>
           <button
             onClick={() => nav('/driver')}
-            className="text-blue-600 hover:text-blue-700 mb-2 flex items-center gap-2"
+            className="text-blue-600 hover:text-blue-700 mb-2 flex items-center gap-2 font-medium"
           >
             ← Back to Dashboard
           </button>
-          <h1 className="text-2xl font-bold">Delivery #{delivery._id.slice(-6)}</h1>
+          <h1 className="text-2xl font-bold">🚚 Delivery #{delivery._id.slice(-6)}</h1>
           <div className="flex items-center gap-4 text-sm text-gray-600 mt-1">
             <span>👤 {delivery.customerId?.name}</span>
             <span>📞 {delivery.customerId?.phone}</span>
@@ -88,36 +123,76 @@ export default function DriverDeliveryDetail() {
         </div>
       </div>
 
-      {/* Route Information */}
+      {/* Route Information Cards */}
       <div className="grid md:grid-cols-3 gap-4">
-        <div className="bg-white p-4 rounded-lg border">
-          <div className="text-sm text-gray-600">Distance</div>
-          <div className="text-xl font-bold text-blue-600">
-            {delivery.route?.distance ? `${(delivery.route.distance / 1000).toFixed(1)} km` : 'Calculating...'}
+        <div className="bg-white p-6 rounded-lg border shadow-sm">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-sm text-gray-600">Distance</div>
+              <div className="text-2xl font-bold text-blue-600">
+                {delivery.route?.distance ? `${(delivery.route.distance / 1000).toFixed(1)} km` : 'N/A'}
+              </div>
+            </div>
+            <div className="text-3xl">📏</div>
           </div>
         </div>
-        <div className="bg-white p-4 rounded-lg border">
-          <div className="text-sm text-gray-600">Estimated Time</div>
-          <div className="text-xl font-bold text-green-600">
-            {delivery.route?.estimatedDuration ? `${delivery.route.estimatedDuration} min` : 'Calculating...'}
+
+        <div className="bg-white p-6 rounded-lg border shadow-sm">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-sm text-gray-600">Estimated Time</div>
+              <div className="text-2xl font-bold text-green-600">
+                {delivery.route?.estimatedDuration ? `${delivery.route.estimatedDuration} min` : 'N/A'}
+              </div>
+            </div>
+            <div className="text-3xl">⏱️</div>
           </div>
         </div>
-        <div className="bg-white p-4 rounded-lg border">
-          <div className="text-sm text-gray-600">Priority</div>
-          <div className="text-xl font-bold text-purple-600 capitalize">{delivery.priority}</div>
+
+        <div className="bg-white p-6 rounded-lg border shadow-sm">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-sm text-gray-600">Priority</div>
+              <div className="text-2xl font-bold text-purple-600 capitalize">{delivery.priority}</div>
+            </div>
+            <div className="text-3xl">🚩</div>
+          </div>
         </div>
       </div>
 
-      {/* Live Map */}
-      <div className="bg-white rounded-lg border overflow-hidden">
-        <div className="p-4 border-b">
-          <h2 className="font-semibold">🗺️ Live Route Map</h2>
-          <div className="flex items-center gap-4 text-sm text-gray-600 mt-1">
-            <span>📍 {delivery.pickup.address}</span>
-            <span>→</span>
-            <span>🎯 {delivery.dropoff.address}</span>
+      {/* Live Tracking Status */}
+      {liveTracking?.location && (
+        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+          <div className="flex items-center gap-3">
+            <div className="h-3 w-3 bg-green-500 rounded-full animate-pulse"></div>
+            <div className="flex-1">
+              <div className="font-medium text-green-800">📍 Live Location Active</div>
+              <div className="text-sm text-green-600">
+                Speed: {liveTracking.location.speed ? `${Math.round(liveTracking.location.speed * 3.6)} km/h` : '0 km/h'} • 
+                Last update: {liveTracking.location.timestamp ? new Date(liveTracking.location.timestamp).toLocaleTimeString() : 'now'}
+              </div>
+            </div>
           </div>
         </div>
+      )}
+
+      {/* Map */}
+      <div className="bg-white rounded-lg border overflow-hidden shadow-sm">
+        <div className="p-4 border-b bg-gray-50">
+          <h2 className="font-semibold text-lg">🗺️ Live Route Map</h2>
+          <div className="flex items-center gap-4 text-sm text-gray-600 mt-2">
+            <span className="flex items-center gap-1">
+              <span className="w-3 h-3 bg-green-500 rounded-full"></span>
+              📍 {delivery.pickup.address}
+            </span>
+            <span>→</span>
+            <span className="flex items-center gap-1">
+              <span className="w-3 h-3 bg-red-500 rounded-full"></span>
+              🎯 {delivery.dropoff.address}
+            </span>
+          </div>
+        </div>
+        
         <DeliveryMap 
           pickup={pickup} 
           dropoff={dropoff} 
@@ -127,41 +202,67 @@ export default function DriverDeliveryDetail() {
         />
       </div>
 
-      {/* Package Details */}
+      {/* Package Information */}
       <div className="bg-white rounded-lg border p-6">
-        <h3 className="font-semibold mb-4">📦 Package Information</h3>
-        <div className="grid md:grid-cols-2 gap-4">
-          <div>
-            <div className="text-sm text-gray-600">Description</div>
-            <div className="font-medium">{delivery.packageDetails.description}</div>
-          </div>
-          {delivery.packageDetails.weight && (
+        <h3 className="font-semibold text-lg mb-4">📦 Package Information</h3>
+        <div className="grid md:grid-cols-2 gap-6">
+          <div className="space-y-3">
             <div>
-              <div className="text-sm text-gray-600">Weight</div>
-              <div className="font-medium">{delivery.packageDetails.weight} kg</div>
+              <div className="text-sm text-gray-600">Description</div>
+              <div className="font-medium text-lg">{delivery.packageDetails.description}</div>
             </div>
-          )}
-          {delivery.packageDetails.specialInstructions && (
-            <div className="md:col-span-2">
-              <div className="text-sm text-gray-600">Special Instructions</div>
-              <div className="font-medium p-3 bg-yellow-50 border border-yellow-200 rounded">
-                ⚠️ {delivery.packageDetails.specialInstructions}
+            {delivery.packageDetails.weight && (
+              <div>
+                <div className="text-sm text-gray-600">Weight</div>
+                <div className="font-medium">{delivery.packageDetails.weight} kg</div>
+              </div>
+            )}
+            <div>
+              <div className="text-sm text-gray-600">Priority Level</div>
+              <div className="font-medium capitalize flex items-center gap-2">
+                {delivery.priority === 'urgent' && '🔴'}
+                {delivery.priority === 'high' && '🟠'} 
+                {delivery.priority === 'medium' && '🟡'}
+                {delivery.priority === 'low' && '🟢'}
+                {delivery.priority}
               </div>
             </div>
-          )}
+          </div>
+          
+          <div className="space-y-3">
+            <div>
+              <div className="text-sm text-gray-600">Customer Contact</div>
+              <div className="font-medium">{delivery.customerId?.phone}</div>
+            </div>
+            {delivery.packageDetails.isFragile && (
+              <div className="bg-orange-50 border border-orange-200 rounded p-3">
+                <div className="font-medium text-orange-800">⚠️ Handle with Care</div>
+                <div className="text-sm text-orange-600">This package is fragile</div>
+              </div>
+            )}
+            {delivery.packageDetails.specialInstructions && (
+              <div className="bg-blue-50 border border-blue-200 rounded p-3">
+                <div className="text-sm font-medium text-blue-800">📝 Special Instructions:</div>
+                <div className="text-sm text-blue-700">{delivery.packageDetails.specialInstructions}</div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
       {/* Action Buttons */}
       <div className="bg-white rounded-lg border p-6">
-        <h3 className="font-semibold mb-4">🎯 Delivery Actions</h3>
+        <h3 className="font-semibold text-lg mb-4">🎯 Delivery Actions</h3>
         
         <div className="space-y-4">
           {delivery.status === 'assigned' && (
-            <div className="space-y-3">
-              <p className="text-sm text-gray-600">Mark as picked up when you collect the package from pickup location</p>
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+              <div className="mb-3">
+                <div className="font-medium text-amber-800">📦 Ready for Pickup</div>
+                <div className="text-sm text-amber-600">Go to pickup location and collect the package</div>
+              </div>
               <button 
-                className="w-full bg-amber-600 hover:bg-amber-700 text-white px-6 py-4 rounded-lg font-semibold text-lg"
+                className="w-full bg-amber-600 hover:bg-amber-700 text-white px-6 py-4 rounded-lg font-semibold text-lg transition-colors"
                 onClick={() => updateStatus.mutate({ status: 'picked_up' })}
                 disabled={updateStatus.isPending}
               >
@@ -171,46 +272,60 @@ export default function DriverDeliveryDetail() {
           )}
 
           {delivery.status === 'picked_up' && (
-            <div className="space-y-3">
-              <p className="text-sm text-gray-600">Start your journey to the dropoff location</p>
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="mb-3">
+                <div className="font-medium text-blue-800">🚚 Start Journey</div>
+                <div className="text-sm text-blue-600">Begin navigation to dropoff location</div>
+              </div>
               <button 
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white px-6 py-4 rounded-lg font-semibold text-lg"
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white px-6 py-4 rounded-lg font-semibold text-lg transition-colors"
                 onClick={() => updateStatus.mutate({ status: 'on_route' })}
                 disabled={updateStatus.isPending}
               >
-                {updateStatus.isPending ? '⏳ Starting...' : '🚚 Start Journey'}
+                {updateStatus.isPending ? '⏳ Starting...' : '🚚 Start Journey to Destination'}
               </button>
             </div>
           )}
 
           {delivery.status === 'on_route' && (
-            <div className="space-y-3">
-              <div>
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+              <div className="mb-4">
+                <div className="font-medium text-green-800">✅ Complete Delivery</div>
+                <div className="text-sm text-green-600">Mark as delivered when package is handed over</div>
+              </div>
+              
+              <div className="mb-4">
                 <label className="block text-sm font-medium mb-2">Delivery Notes (Optional)</label>
                 <textarea
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  placeholder="Any notes about the delivery..."
-                  className="w-full border rounded-lg px-3 py-2"
+                  placeholder="Add any delivery notes, customer feedback, or special observations..."
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500"
                   rows={3}
                 />
               </div>
-              <p className="text-sm text-gray-600">Mark as delivered when package is successfully delivered</p>
+
               <button 
-                className="w-full bg-green-600 hover:bg-green-700 text-white px-6 py-4 rounded-lg font-semibold text-lg"
+                className="w-full bg-green-600 hover:bg-green-700 text-white px-6 py-4 rounded-lg font-semibold text-lg transition-colors"
                 onClick={() => updateStatus.mutate({ status: 'delivered', driverNotes: notes })}
                 disabled={updateStatus.isPending}
               >
-                {updateStatus.isPending ? '⏳ Delivering...' : '✅ Mark as Delivered'}
+                {updateStatus.isPending ? '⏳ Completing...' : '✅ Mark as Delivered'}
               </button>
             </div>
           )}
 
           {delivery.status === 'delivered' && (
-            <div className="text-center py-4 bg-green-50 border border-green-200 rounded-lg">
-              <div className="text-2xl mb-2">🎉</div>
-              <div className="font-semibold text-green-800">Delivery Completed!</div>
-              <div className="text-sm text-green-600">Great job completing this delivery</div>
+            <div className="bg-green-100 border border-green-300 rounded-lg p-6 text-center">
+              <div className="text-4xl mb-4">🎉</div>
+              <div className="font-bold text-green-800 text-xl mb-2">Delivery Completed!</div>
+              <div className="text-green-700 mb-4">Great job completing this delivery successfully</div>
+              <button
+                onClick={() => nav('/driver')}
+                className="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700"
+              >
+                Return to Dashboard
+              </button>
             </div>
           )}
         </div>

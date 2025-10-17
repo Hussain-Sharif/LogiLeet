@@ -17,29 +17,32 @@ export const useDeliveryTracking = (deliveryId?: string) => {
   useEffect(() => {
     if (!deliveryId) return;
 
+    console.log(`🔌 Joining delivery room: ${deliveryId}`);
     socket.emit('join-delivery', deliveryId);
     setIsConnected(true);
 
     const locationHandler = (data: any) => {
       console.log('📍 Live location update received:', data);
-      setLocation({
-        latitude: data.location?.latitude,
-        longitude: data.location?.longitude,
-        speed: data.location?.speed,
-        status: data.status,
-        timestamp: data.timestamp
-      });
+      if (data.deliveryId === deliveryId) {
+        setLocation({
+          latitude: data.location?.latitude,
+          longitude: data.location?.longitude,
+          speed: data.location?.speed,
+          status: data.status,
+          timestamp: data.timestamp
+        });
+      }
     };
 
     const statusHandler = (data: any) => {
       console.log('📊 Status update received:', data);
-      // You can add status-specific handling here
     };
 
     socket.on('location-update', locationHandler);
     socket.on('status-update', statusHandler);
 
     return () => {
+      console.log(`🔌 Leaving delivery room: ${deliveryId}`);
       socket.off('location-update', locationHandler);
       socket.off('status-update', statusHandler);
       socket.emit('leave-delivery', deliveryId);

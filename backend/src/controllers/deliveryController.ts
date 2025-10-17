@@ -131,28 +131,20 @@ export const updateDeliveryStatus = asyncHandler(async (req: Request, res: Respo
   const { status, driverNotes } = req.body;
   const userId = req.user?.userId;
   
-  const delivery = await Delivery.findById(deliveryId).populate('customerId driverId', 'name email');
+  console.log(`Status update request: ${deliveryId} -> ${status} by user ${userId}`);
+  
+  const delivery = await Delivery.findById(deliveryId)
+    .populate('customerId', 'name email phone')
+    .populate('driverId', 'name email phone');
+    
   if (!delivery) {
     throw new ApiError(404, 'Delivery not found');
   }
   
   // Authorization check
   const user = await User.findById(userId);
-  if (user?.role !== 'admin' && delivery.driverId?.toString() !== userId) {
+  if (user?.role !== 'admin' && delivery.driverId?._id.toString() !== userId) {
     throw new ApiError(403, 'Unauthorized to update this delivery');
-  }
-  
-  // Validate status transitions
-  const validTransitions: Record<string, string[]> = {
-    'assigned': ['picked_up', 'cancelled'],
-    'picked_up': ['on_route'],
-    'on_route': ['delivered'],
-    'delivered': [],
-    'cancelled': []
-  };
-  
-  if (!validTransitions[delivery.status]?.includes(status)) {
-    throw new ApiError(400, `Invalid status transition from ${delivery.status} to ${status}`);
   }
   
   // Update delivery with timestamp
@@ -179,34 +171,41 @@ export const updateDeliveryStatus = asyncHandler(async (req: Request, res: Respo
     { new: true }
   ).populate('customerId driverId vehicleId', 'name email phone vehicleNumber vehicleBrand vehicleModel');
   
-  // Real-time notifications via Socket.IO
+  // REAL-TIME NOTIFICATIONS
   const io = req.app.get('io');
   
-  // Notify customer
+  // Customer notifications
   if (delivery.customerId) {
-    const customerNotifications = {
-      picked_up: 'Your package has been picked up by the driver 📦',
-      on_route: 'Your package is now on the way to destination 🚚',
-      delivered: 'Your package has been delivered successfully! ✅'
+    const customerMessages = {
+      picked_up: '📦 Your package has been picked up by the driver',
+      on_route: '🚚 Your package is now on the way to destination',
+      delivered: '✅ Your package has been delivered successfully!'
     };
     
-    io?.to(`user-${delivery.customerId._id}`).emit('delivery-status-updated', {
-      deliveryId,
-      status,
-      message: customerNotifications[status as keyof typeof customerNotifications],
-      delivery: updatedDelivery
-    });
+    const message = customerMessages[status as keyof typeof customerMessages];
+    if (message) {
+      console.log(`Sending notification to customer ${delivery.customerId._id}: ${message}`);
+      
+      io?.to(`user-${delivery.customerId._id}`).emit('delivery-status-updated', {
+        deliveryId,
+        status,
+        message,
+        delivery: updatedDelivery,
+        timestamp: new Date()
+      });
+    }
   }
   
-  // Notify admin
+  // Admin notifications
   io?.emit('admin-delivery-update', {
     deliveryId,
     status,
     message: `Delivery #${deliveryId!.slice(-6)} status updated to ${status}`,
-    delivery: updatedDelivery
+    delivery: updatedDelivery,
+    timestamp: new Date()
   });
   
-  // Broadcast to delivery room for live tracking
+  // Broadcast to delivery tracking room
   io?.to(`delivery-${deliveryId}`).emit('status-update', {
     deliveryId,
     status,
@@ -214,8 +213,11 @@ export const updateDeliveryStatus = asyncHandler(async (req: Request, res: Respo
     driverNotes
   });
   
+  console.log(`Status updated successfully: ${deliveryId} -> ${status}`);
+  
   res.status(200).json(new ApiResponse(200, { delivery: updatedDelivery }, `Delivery status updated to ${status}`));
 });
+
 
 export const getDeliveries = asyncHandler(async (req: Request, res: Response) => {
   const {
