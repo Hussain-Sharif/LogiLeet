@@ -66,7 +66,7 @@ export default function App() {
 
           <Route path="/customer/delivery/:id" element={
             <PrivateRoute roles={['customer','admin']}>
-              <AppLayout><DeliveryDetails /></AppLayout>
+              <AppLayout><DeliveryDetails role="customer"/></AppLayout>
             </PrivateRoute>
           } />
 
@@ -79,7 +79,7 @@ export default function App() {
           
           <Route path="/admin/delivery/:id" element={
             <PrivateRoute roles={['admin']}>
-              <AppLayout><DeliveryDetails /></AppLayout>
+              <AppLayout><DeliveryDetails role={"admin"} /></AppLayout>
             </PrivateRoute>
           } />
           

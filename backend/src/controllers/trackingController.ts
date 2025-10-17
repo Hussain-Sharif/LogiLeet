@@ -153,6 +153,9 @@ export const getLiveDeliveryStatus = asyncHandler(async (req: Request, res: Resp
     const elapsedMinutes = startTime ? Math.floor((Date.now() - startTime.getTime()) / 60000) : 0;
     estimatedTimeRemaining = Math.max(0, delivery.route.estimatedDuration - elapsedMinutes);
   }
+
+  const deliveryCustomer= await User.findById(delivery.customerId);
+  const deliveryDriver= await User.findById(delivery.driverId);
   
   res.status(200).json(new ApiResponse(200, {
     delivery: {
@@ -165,7 +168,11 @@ export const getLiveDeliveryStatus = asyncHandler(async (req: Request, res: Resp
       vehicle: delivery.vehicleId,
       estimatedTimeRemaining,
       actualPickupTime: delivery.actualPickupTime,
-      scheduledDeliveryTime: delivery.scheduledDeliveryTime
+      scheduledDeliveryTime: delivery.scheduledDeliveryTime,
+      deliveryCreatedAt: delivery.createdAt,
+      deliveryPackageDescription:delivery.packageDetails.description,
+      deliveryCustomer: deliveryCustomer?.name,
+      deliveryDriver: deliveryDriver?.name
     },
     currentLocation: latestTracking?.location,
     lastUpdate: latestTracking?.timestamp,

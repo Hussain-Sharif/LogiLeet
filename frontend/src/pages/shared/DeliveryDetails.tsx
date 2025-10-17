@@ -1,4 +1,4 @@
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { DeliveryMap } from '@/components/maps/DeliveryMap';
@@ -8,8 +8,9 @@ import { useDeliveryTracking } from '@/hooks/useDeliveryTracking';
 import type { Delivery } from '@/types/models';
 import { useEffect, useState } from 'react';
 
-export default function DeliveryDetails() {
+export default function DeliveryDetails(props:{role: string}) {
   const { id } = useParams();
+  const {role}=props
   const [eta, setEta] = useState<string | null>(null);
   
   const { data, isLoading, error } = useQuery({
@@ -125,12 +126,23 @@ export default function DeliveryDetails() {
 
   // Safe access to packageDetails
   const packageDetails = d.packageDetails || {};
-  const customerName = (d.customerId as any)?.name || 'Unknown Customer';
+  const customerName = d?.deliveryCustomer|| 'Unknown Customer';
   const driverName = (d.driverId as any)?.name || null;
   const vehicleNumber = (d.vehicleId as any)?.vehicleNumber || null;
 
   return (
     <div className="space-y-6">
+
+      {
+        role==="admin" && (
+          <div className="flex items-center justify-end">
+            <Link to="/admin/deliveries" className="text-blue-600 hover:text-blue-700 font-medium">
+              Manage Delivery Assignment→
+            </Link>
+          </div>
+        )
+      }
+
       {/* Header */}
       <div className="bg-white border rounded-lg p-6">
         <div className="flex items-center justify-between mb-4">
@@ -222,7 +234,7 @@ export default function DeliveryDetails() {
             <div>
               <div className="text-sm text-gray-600">Description</div>
               <div className="font-medium">
-                {packageDetails.description || 'No description provided'}
+                {d.deliveryPackageDescription || 'No description provided'}
               </div>
             </div>
             {packageDetails.weight && (
@@ -246,7 +258,7 @@ export default function DeliveryDetails() {
           <div className="space-y-3">
             <div>
               <div className="text-sm text-gray-600">Customer</div>
-              <div className="font-medium">{customerName}</div>
+              <div className="font-medium">{d.deliveryCustomer}</div>
             </div>
             {packageDetails.isFragile && (
               <div className="bg-orange-50 border border-orange-200 rounded p-3">
@@ -267,7 +279,7 @@ export default function DeliveryDetails() {
           <div className="grid md:grid-cols-3 gap-4 text-sm">
             <div>
               <span className="text-gray-600">Created:</span>
-              <span className="ml-2 font-medium">{new Date(d.createdAt).toLocaleString()}</span>
+              <span className="ml-2 font-medium">{new Date(d.deliveryCreatedAt).toLocaleString()}</span>
             </div>
             {d.assignedAt && (
               <div>

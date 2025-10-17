@@ -16,7 +16,7 @@ export default function AdminDelivery() {
     refetchInterval: 10000
   });
 
-  const live = useDeliveryTracking(id);
+  const live:any = useDeliveryTracking(id);
 
   if (isLoading) return <div className="p-6">Loading...</div>;
   if (!data?.delivery) return <div className="p-6">Delivery not found</div>;

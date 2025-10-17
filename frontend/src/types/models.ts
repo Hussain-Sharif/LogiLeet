@@ -51,6 +51,9 @@ export interface Delivery {
     specialInstructions?: string;
     isFragile?: boolean;
   };
+  deliveryCreatedAt: string;
+  deliveryCustomer: string;
+  deliveryPackageDescription:string;
   assignedAt?: string;
   actualPickupTime?: string;
   actualDeliveryTime?: string;
