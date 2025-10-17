@@ -1,7 +1,15 @@
-import { useEffect, useRef } from 'react';
-// @ts-ignore
-import * as tt from '@tomtom-international/web-sdk-maps';
-import '@tomtom-international/web-sdk-maps/dist/maps.css';
+import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet';
+import L, { type LatLngExpression } from 'leaflet';
+import { useEffect } from 'react';
+import 'leaflet/dist/leaflet.css';
+
+// Fix Leaflet default icons
+delete (L.Icon.Default.prototype as any)._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
+  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+});
 
 interface Props {
   pickup: { lat: number; lng: number };
@@ -11,142 +19,115 @@ interface Props {
   height?: string;
 }
 
-export function DeliveryMap({ pickup, dropoff, driver, routePath = [], height = '400px' }: Props) {
-  const mapRef = useRef<HTMLDivElement>(null);
-  const mapInstance = useRef<any>(null);
-  const markers = useRef<any[]>([]);
-  const routeLayer = useRef<any>(null);
-
+function MapController({ pickup, dropoff, driver, routePath = [] }: any) {
+  const map = useMap();
+  
   useEffect(() => {
-    if (!mapRef.current) return;
-
-    // Initialize map
-    mapInstance.current = tt.map({
-      key: import.meta.env.VITE_TOMTOM_API_KEY,
-      container: mapRef.current,
-      style: 'tomtom://vector/1/basic-main',
-      center: [pickup.lng, pickup.lat],
-      zoom: 11
-    });
-
-    // Add pickup marker (green)
-    const pickupMarker = new tt.Marker({ color: '#10b981' })
-      .setLngLat([pickup.lng, pickup.lat])
-      .setPopup(new tt.Popup().setHTML('<div style="padding:8px;"><strong>📍 Pickup Location</strong></div>'))
-      .addTo(mapInstance.current);
-
-    // Add dropoff marker (red)
-    const dropoffMarker = new tt.Marker({ color: '#ef4444' })
-      .setLngLat([dropoff.lng, dropoff.lat])
-      .setPopup(new tt.Popup().setHTML('<div style="padding:8px;"><strong>🎯 Dropoff Location</strong></div>'))
-      .addTo(mapInstance.current);
-
-    markers.current = [pickupMarker, dropoffMarker];
-
-    // Draw route path if available
-    if (routePath.length > 1) {
-      const routeCoordinates = routePath.map(point => [point.lng, point.lat]);
-      
-      mapInstance.current.on('load', () => {
-        mapInstance.current.addSource('route', {
-          type: 'geojson',
-          data: {
-            type: 'Feature',
-            properties: {},
-            geometry: {
-              type: 'LineString',
-              coordinates: routeCoordinates
-            }
-          }
-        });
-
-        mapInstance.current.addLayer({
-          id: 'route',
-          type: 'line',
-          source: 'route',
-          layout: {
-            'line-join': 'round',
-            'line-cap': 'round'
-          },
-          paint: {
-            'line-color': '#2563eb',
-            'line-width': 4,
-            'line-opacity': 0.8
-          }
-        });
-      });
-    }
-
-    // Fit bounds to show all points
-    const bounds = new tt.LngLatBounds()
-      .extend([pickup.lng, pickup.lat])
-      .extend([dropoff.lng, dropoff.lat]);
-    
-    if (driver) {
-      bounds.extend([driver.lng, driver.lat]);
+    const bounds = L.latLngBounds([]);
+    bounds.extend([pickup.lat, pickup.lng]);
+    bounds.extend([dropoff.lat, dropoff.lng]);
+    if (driver) bounds.extend([driver.lat, driver.lng]);
+    if (routePath.length > 0) {
+      routePath.forEach((point: any) => bounds.extend([point.lat, point.lng]));
     }
     
-    mapInstance.current.fitBounds(bounds, { 
-      padding: { top: 50, bottom: 50, left: 50, right: 50 }
-    });
+    map.fitBounds(bounds, { padding: [20, 20] });
+  }, [pickup, dropoff, driver, routePath, map]);
+  
+  return null;
+}
 
-    return () => {
-      markers.current.forEach(m => m.remove());
-      mapInstance.current?.remove();
-    };
-  }, [pickup.lat, pickup.lng, dropoff.lat, dropoff.lng, routePath]);
+export function DeliveryMap({ pickup, dropoff, driver, routePath = [], height = '400px' }: Props) {
+  const pickupIcon = new L.Icon({
+    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
+    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+    iconSize: [25, 41],
+    iconAnchor: [12, 41],
+    popupAnchor: [1, -34],
+    shadowSize: [41, 41]
+  });
 
-  // Update driver location (blue marker with animation)
-  useEffect(():any => {
-    if (!driver || !mapInstance.current) return;
+  const dropoffIcon = new L.Icon({
+    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
+    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+    iconSize: [25, 41],
+    iconAnchor: [12, 41],
+    popupAnchor: [1, -34],
+    shadowSize: [41, 41]
+  });
 
-    const driverMarker = new tt.Marker({ 
-      color: '#3b82f6',
-      // scale: 1.2
-    })
-      .setLngLat([driver.lng, driver.lat])
-      .setPopup(new tt.Popup().setHTML('<div style="padding:8px;"><strong>🚗 Driver Location</strong><br><small>Live tracking active</small></div>'))
-      .addTo(mapInstance.current);
+  const driverIcon = new L.Icon({
+    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
+    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+    iconSize: [30, 45],
+    iconAnchor: [15, 45],
+    popupAnchor: [1, -34],
+    shadowSize: [45, 45]
+  });
 
-    // Add pulsing effect for live tracking
-    const driverElement = driverMarker.getElement();
-    driverElement.style.animation = 'pulse 2s infinite';
-
-    markers.current.push(driverMarker);
-
-    return () => driverMarker.remove();
-  }, [driver?.lat, driver?.lng]);
+  const routePositions: LatLngExpression[] = routePath.map(p => [p.lat, p.lng]);
 
   return (
-    <div className="relative w-full rounded-lg overflow-hidden" style={{ height }}>
-      <div ref={mapRef} className="w-full h-full" />
-      
-      {/* Map Legend */}
-      <div className="absolute top-4 left-4 bg-white bg-opacity-95 backdrop-blur-sm rounded-lg p-3 shadow-lg">
-        <div className="text-xs space-y-1">
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-            <span>Pickup</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 bg-red-500 rounded-full"></div>
-            <span>Dropoff</span>
-          </div>
-          {driver && (
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
-              <span>Driver (Live)</span>
-            </div>
-          )}
-        </div>
-      </div>
+    <div className="w-full rounded-lg border overflow-hidden" style={{ height }}>
+      <MapContainer
+        style={{ height: '100%', width: '100%' }}
+        center={[pickup.lat, pickup.lng]}
+        zoom={12}
+        scrollWheelZoom={true}
+      >
+        <TileLayer
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        />
 
-      <style>{`
-        @keyframes pulse {
-          0%, 100% { transform: scale(1); opacity: 1; }
-          50% { transform: scale(1.1); opacity: 0.8; }
-        }
-      `}</style>
+        {/* Pickup Marker */}
+        <Marker position={[pickup.lat, pickup.lng]} icon={pickupIcon}>
+          <Popup>
+            <div className="text-center">
+              <div className="font-semibold text-green-600">📍 Pickup Location</div>
+              <div className="text-xs text-gray-600">{pickup.lat.toFixed(4)}, {pickup.lng.toFixed(4)}</div>
+            </div>
+          </Popup>
+        </Marker>
+
+        {/* Dropoff Marker */}
+        <Marker position={[dropoff.lat, dropoff.lng]} icon={dropoffIcon}>
+          <Popup>
+            <div className="text-center">
+              <div className="font-semibold text-red-600">🎯 Dropoff Location</div>
+              <div className="text-xs text-gray-600">{dropoff.lat.toFixed(4)}, {dropoff.lng.toFixed(4)}</div>
+            </div>
+          </Popup>
+        </Marker>
+
+        {/* Driver Marker */}
+        {driver && (
+          <Marker position={[driver.lat, driver.lng]} icon={driverIcon}>
+            <Popup>
+              <div className="text-center">
+                <div className="font-semibold text-blue-600">🚚 Driver Location</div>
+                <div className="text-xs text-green-600">● Live Tracking</div>
+                <div className="text-xs text-gray-600">{driver.lat.toFixed(4)}, {driver.lng.toFixed(4)}</div>
+              </div>
+            </Popup>
+          </Marker>
+        )}
+
+        {/* Route Path */}
+        {routePositions.length > 1 && (
+          <Polyline 
+            positions={routePositions} 
+            pathOptions={{ 
+              color: '#2563eb', 
+              weight: 5, 
+              opacity: 0.8,
+              dashArray: driver ? undefined : '10, 10' // Dashed line if no driver yet
+            }} 
+          />
+        )}
+
+        <MapController pickup={pickup} dropoff={dropoff} driver={driver} routePath={routePath} />
+      </MapContainer>
     </div>
   );
 }

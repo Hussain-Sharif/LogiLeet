@@ -7,6 +7,7 @@ import { Vehicle } from '../models/Vehicle.js';
 import asyncHandler  from '../utils/asyncHandler.js';
 import { ApiError } from '../utils/ApiError.js';
 import { ApiResponse } from '../utils/ApiResponse.js';
+import { computeRoute } from '../services/routeService.js';
 
 export const createDelivery = asyncHandler(async (req: Request, res: Response) => {
   const {
@@ -43,7 +44,7 @@ export const createDelivery = asyncHandler(async (req: Request, res: Response) =
 
 export const assignDelivery = asyncHandler(async (req: Request, res: Response) => {
   const { deliveryId } = req.params;
-  const { driverId, vehicleId, route } = req.body;
+  const { driverId, vehicleId } = req.body;
   
   // Check if delivery exists and is assignable
   const delivery = await Delivery.findById(deliveryId);
@@ -88,7 +89,12 @@ export const assignDelivery = asyncHandler(async (req: Request, res: Response) =
     throw new ApiError(409, 'Driver or vehicle is already assigned to another active delivery');
   }
   
-  // Assign delivery
+  // Compute route
+  const route = await computeRoute(
+    { lat: delivery.pickup.latitude, lng: delivery.pickup.longitude },
+    { lat: delivery.dropoff.latitude, lng: delivery.dropoff.longitude }
+  );
+  
   const updatedDelivery = await Delivery.findByIdAndUpdate(
     deliveryId,
     {
@@ -102,7 +108,21 @@ export const assignDelivery = asyncHandler(async (req: Request, res: Response) =
   ).populate('customerId', 'name email phone')
    .populate('driverId', 'name email phone')
    .populate('vehicleId', 'vehicleNumber vehicleBrand vehicleModel');
-  
+
+  // Notify driver via socket
+  req.app.get('io')?.to(`user-${driverId}`).emit('delivery-assigned', {
+    deliveryId,
+    message: 'New delivery assigned to you',
+    delivery: updatedDelivery
+  });
+
+  // Notify customer via socket
+  req.app.get('io')?.to(`user-${delivery.customerId}`).emit('delivery-assigned', {
+    deliveryId,
+    message: 'Your delivery has been assigned to a driver',
+    delivery: updatedDelivery
+  });
+
   res.status(200).json(new ApiResponse(200, { delivery: updatedDelivery }, 'Delivery assigned successfully'));
 });
 
@@ -111,13 +131,12 @@ export const updateDeliveryStatus = asyncHandler(async (req: Request, res: Respo
   const { status, driverNotes } = req.body;
   const userId = req.user?.userId;
   
-  // Check if delivery exists
-  const delivery = await Delivery.findById(deliveryId);
+  const delivery = await Delivery.findById(deliveryId).populate('customerId driverId', 'name email');
   if (!delivery) {
     throw new ApiError(404, 'Delivery not found');
   }
   
-  // Authorization check - only assigned driver or admin can update status
+  // Authorization check
   const user = await User.findById(userId);
   if (user?.role !== 'admin' && delivery.driverId?.toString() !== userId) {
     throw new ApiError(403, 'Unauthorized to update this delivery');
@@ -128,8 +147,8 @@ export const updateDeliveryStatus = asyncHandler(async (req: Request, res: Respo
     'assigned': ['picked_up', 'cancelled'],
     'picked_up': ['on_route'],
     'on_route': ['delivered'],
-    'delivered': [], // Final state
-    'cancelled': [] // Final state
+    'delivered': [],
+    'cancelled': []
   };
   
   if (!validTransitions[delivery.status]?.includes(status)) {
@@ -145,6 +164,9 @@ export const updateDeliveryStatus = asyncHandler(async (req: Request, res: Respo
       updateData.actualPickupTime = new Date();
       updateData.pickedUpAt = new Date();
       break;
+    case 'on_route':
+      updateData.onRouteAt = new Date();
+      break;
     case 'delivered':
       updateData.actualDeliveryTime = new Date();
       updateData.deliveredAt = new Date();
@@ -155,9 +177,42 @@ export const updateDeliveryStatus = asyncHandler(async (req: Request, res: Respo
     deliveryId,
     updateData,
     { new: true }
-  ).populate('customerId', 'name email phone')
-   .populate('driverId', 'name email phone')
-   .populate('vehicleId', 'vehicleNumber vehicleBrand vehicleModel');
+  ).populate('customerId driverId vehicleId', 'name email phone vehicleNumber vehicleBrand vehicleModel');
+  
+  // Real-time notifications via Socket.IO
+  const io = req.app.get('io');
+  
+  // Notify customer
+  if (delivery.customerId) {
+    const customerNotifications = {
+      picked_up: 'Your package has been picked up by the driver 📦',
+      on_route: 'Your package is now on the way to destination 🚚',
+      delivered: 'Your package has been delivered successfully! ✅'
+    };
+    
+    io?.to(`user-${delivery.customerId._id}`).emit('delivery-status-updated', {
+      deliveryId,
+      status,
+      message: customerNotifications[status as keyof typeof customerNotifications],
+      delivery: updatedDelivery
+    });
+  }
+  
+  // Notify admin
+  io?.emit('admin-delivery-update', {
+    deliveryId,
+    status,
+    message: `Delivery #${deliveryId!.slice(-6)} status updated to ${status}`,
+    delivery: updatedDelivery
+  });
+  
+  // Broadcast to delivery room for live tracking
+  io?.to(`delivery-${deliveryId}`).emit('status-update', {
+    deliveryId,
+    status,
+    timestamp: updateData.actualPickupTime || updateData.onRouteAt || updateData.actualDeliveryTime || new Date(),
+    driverNotes
+  });
   
   res.status(200).json(new ApiResponse(200, { delivery: updatedDelivery }, `Delivery status updated to ${status}`));
 });

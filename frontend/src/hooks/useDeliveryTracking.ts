@@ -12,12 +12,16 @@ export interface DriverLocation {
 export const useDeliveryTracking = (deliveryId?: string) => {
   const socket = useSocket();
   const [location, setLocation] = useState<DriverLocation | null>(null);
+  const [isConnected, setIsConnected] = useState(false);
 
   useEffect(() => {
     if (!deliveryId) return;
-    socket.emit('join-delivery', deliveryId);
 
-    const handler = (data: any) => {
+    socket.emit('join-delivery', deliveryId);
+    setIsConnected(true);
+
+    const locationHandler = (data: any) => {
+      console.log('📍 Live location update received:', data);
       setLocation({
         latitude: data.location?.latitude,
         longitude: data.location?.longitude,
@@ -27,13 +31,21 @@ export const useDeliveryTracking = (deliveryId?: string) => {
       });
     };
 
-    socket.on('location-update', handler);
+    const statusHandler = (data: any) => {
+      console.log('📊 Status update received:', data);
+      // You can add status-specific handling here
+    };
+
+    socket.on('location-update', locationHandler);
+    socket.on('status-update', statusHandler);
 
     return () => {
-      socket.off('location-update', handler);
+      socket.off('location-update', locationHandler);
+      socket.off('status-update', statusHandler);
       socket.emit('leave-delivery', deliveryId);
+      setIsConnected(false);
     };
   }, [deliveryId, socket]);
 
-  return location;
+  return { location, isConnected };
 };

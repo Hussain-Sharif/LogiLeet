@@ -19,6 +19,8 @@ import AdminDelivery from './pages/admin/AdminDelivery';
 import Register from './pages/auth/Register';
 import UserManagement from './pages/admin/UserManagement';
 import VehicleManagement from './pages/admin/VehicleManagement';
+import DriverDeliveryDetail from './pages/driver/DriverDeliveryDetail';
+import DriverHistory from './pages/driver/DriverHistory';
 
 function PrivateRoute({ children, roles }: { children: JSX.Element; roles?: Array<'admin' | 'driver' | 'customer'> }) {
   const user = useAuth((s) => s.user);
@@ -66,7 +68,12 @@ export default function App() {
             <PrivateRoute roles={['admin']}><AppLayout><AdminDelivery  /></AppLayout></PrivateRoute>
           } />
           <Route path="/driver/delivery/:id" element={
-            <PrivateRoute roles={['driver','admin']}><AppLayout><DriverDelivery /></AppLayout></PrivateRoute>
+            <PrivateRoute roles={['driver','admin']}><AppLayout><DriverDeliveryDetail  /></AppLayout></PrivateRoute>
+          } />
+          <Route path="/driver/history" element={
+            <PrivateRoute roles={['driver']}>
+              <AppLayout><DriverHistory /></AppLayout>
+            </PrivateRoute>
           } />
 
           <Route path="/admin/deliveries" element={
