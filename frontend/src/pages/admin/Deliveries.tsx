@@ -54,8 +54,12 @@ export default function Deliveries() {
       
       if (data.routes?.[0]) {
         const route = data.routes[0];
+        const allPoints = route.legs[0].points.map((p:any)=>({ lat: p.latitude, lng: p.longitude }));
+        // Downsample: keep every Nth point
+        const N = Math.ceil(allPoints.length / 200); // cap to ~200 points
+        const waypoints = allPoints.filter((_, idx) => idx % N === 0);
         return {
-          waypoints: route.legs[0].points?.map((p: any) => ({ lat: p.latitude, lng: p.longitude })) || [],
+          waypoints,
           distance: route.summary.lengthInMeters,
           estimatedDuration: Math.round(route.summary.travelTimeInSeconds / 60),
           encodedPolyline: null
