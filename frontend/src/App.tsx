@@ -14,6 +14,11 @@ import AppLayout from './components/layout/AppLayout';
 import CreateDelivery from './pages/customer/CreateDelivery';
 import DeliveryDetails from './pages/shared/DeliveryDetails';
 import Deliveries from './pages/admin/Deliveries';
+import DriverDelivery from './pages/driver/DriverDelivery';
+import AdminDelivery from './pages/admin/AdminDelivery';
+import Register from './pages/auth/Register';
+import UserManagement from './pages/admin/UserManagement';
+import VehicleManagement from './pages/admin/VehicleManagement';
 
 function PrivateRoute({ children, roles }: { children: JSX.Element; roles?: Array<'admin' | 'driver' | 'customer'> }) {
   const user = useAuth((s) => s.user);
@@ -29,6 +34,7 @@ export default function App() {
         <Toaster />
         <Routes>
           <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
           
           <Route path="/admin" element={
             <PrivateRoute roles={['admin']}><AppLayout><AdminDashboard /></AppLayout></PrivateRoute>
@@ -57,15 +63,25 @@ export default function App() {
             <PrivateRoute roles={['customer','admin']}><AppLayout><DeliveryDetails /></AppLayout></PrivateRoute>
           } />
           <Route path="/admin/delivery/:id" element={
-            <PrivateRoute roles={['admin']}><AppLayout><DeliveryDetails /></AppLayout></PrivateRoute>
+            <PrivateRoute roles={['admin']}><AppLayout><AdminDelivery  /></AppLayout></PrivateRoute>
           } />
           <Route path="/driver/delivery/:id" element={
-            <PrivateRoute roles={['driver','admin']}><AppLayout><DeliveryDetails /></AppLayout></PrivateRoute>
+            <PrivateRoute roles={['driver','admin']}><AppLayout><DriverDelivery /></AppLayout></PrivateRoute>
           } />
 
           <Route path="/admin/deliveries" element={
             <PrivateRoute roles={['admin']}><AppLayout><Deliveries /></AppLayout></PrivateRoute>
           } />
+          
+          <Route path="/admin/users" element={
+            <PrivateRoute roles={['admin']}><AppLayout><UserManagement /></AppLayout></PrivateRoute>
+          } />
+          
+          <Route path="/admin/vehicles" element={
+            <PrivateRoute roles={['admin']}><AppLayout><VehicleManagement /></AppLayout></PrivateRoute>
+          } />
+
+          
 
           <Route path="/" element={<Navigate to="/login" replace />} />
           <Route path="*" element={<div className="p-4">Not Found</div>} />

@@ -243,6 +243,18 @@ export default function CreateDelivery() {
           </div>
         </div>
 
+        {pickup && dropoff && (
+          <div className="rounded-lg border bg-white p-4">
+            <div className="font-medium mb-2">Preview Route</div>
+            <DeliveryMap
+              pickup={{ lat: pickup.latitude, lng: pickup.longitude }}
+              dropoff={{ lat: dropoff.latitude, lng: dropoff.longitude }}
+              height="260px"
+            />
+            <div className="text-xs text-gray-600 mt-2">This is a preview. Exact route and ETA will be available after assignment.</div>
+          </div>
+          )}
+
         {/* Submit */}
         <button
           type="submit"
