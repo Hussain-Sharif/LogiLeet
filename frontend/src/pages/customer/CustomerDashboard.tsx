@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { Link } from 'react-router-dom';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useSocket } from '@/hooks/useSocket';
 import { useAuth } from '@/store/auth';
 import DeliveryStatusBadge from '@/components/deliveries/DeliveryStatusBadge';
@@ -23,14 +23,6 @@ export default function CustomerDashboard() {
     
     socket.emit('join-room', `user-${user._id}`);
     
-    socket.on('delivery-assigned', (data) => {
-      toast.success('📦 Your delivery has been assigned to a driver!');
-      // setRecentActivity(prev => [...prev, { 
-      //   message: 'Delivery assigned to driver', 
-      //   timestamp: new Date(),
-      //   deliveryId: data.deliveryId 
-      // }]);
-    });
 
     socket.on('delivery-status-updated', (data) => {
       const statusMessages = {

@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useSocket } from '@/hooks/useSocket';
 import { useAuth } from '@/store/auth';
 import DeliveryStatusBadge from '@/components/deliveries/DeliveryStatusBadge';
@@ -28,11 +28,11 @@ export default function DriverDashboard() {
   useEffect(() => {
     socket.emit('join-room', `user-${user?._id}`);
     
-    socket.on('delivery-assigned', (data) => {
-      toast.success('🎯 New delivery assigned to you!');
-      // setNotifications(prev => [...prev, { ...data, timestamp: Date.now() }]);
-      qc.invalidateQueries({ queryKey: ['driver-active'] });
-    });
+    // socket.on('delivery-assigned', (data) => {
+    //   toast.success('🎯 New delivery assigned to you!');
+    //   // setNotifications(prev => [...prev, { ...data, timestamp: Date.now() }]);
+    //   qc.invalidateQueries({ queryKey: ['driver-active'] });
+    // });
 
     return () => {
       socket.off('delivery-assigned');
