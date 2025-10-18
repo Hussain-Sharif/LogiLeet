@@ -10,7 +10,7 @@ import toast from 'react-hot-toast';
 export default function CustomerDashboard() {
   const socket = useSocket();
   const user = useAuth(s => s.user);
-  const [recentActivity, setRecentActivity] = useState<any[]>([]);
+  // const [recentActivity, setRecentActivity] = useState<any[]>([]);
 
   const { data, isLoading } = useQuery({
     queryKey: ['customer-deliveries'],
@@ -25,11 +25,11 @@ export default function CustomerDashboard() {
     
     socket.on('delivery-assigned', (data) => {
       toast.success('📦 Your delivery has been assigned to a driver!');
-      setRecentActivity(prev => [...prev, { 
-        message: 'Delivery assigned to driver', 
-        timestamp: new Date(),
-        deliveryId: data.deliveryId 
-      }]);
+      // setRecentActivity(prev => [...prev, { 
+      //   message: 'Delivery assigned to driver', 
+      //   timestamp: new Date(),
+      //   deliveryId: data.deliveryId 
+      // }]);
     });
 
     socket.on('delivery-status-updated', (data) => {

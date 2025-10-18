@@ -120,7 +120,7 @@ export default function DriverDeliveryDetail() {
   const routePath = delivery.route?.waypoints || [];
 
   // Can cancel if status is picked_up or on_route
-  const canCancel = ['picked_up', 'on_route'].includes(delivery.status);
+  // const canCancel = ['picked_up', 'on_route'].includes(delivery.status);
 
   return (
     <div className="space-y-6">

@@ -12,7 +12,7 @@ export default function TrackDelivery() {
     enabled: Boolean(id)
   });
 
-  const live = useDeliveryTracking(id);
+  const live:any = useDeliveryTracking(id);
 
   if (isLoading) return <div className="p-4">Loading...</div>;
   const delivery = data?.delivery;

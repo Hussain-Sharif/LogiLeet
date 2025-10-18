@@ -29,11 +29,11 @@ export default function DriverDelivery() {
     onError: (e: any) => toast.error(e?.response?.data?.message || 'Update failed')
   });
 
-  const live = useDeliveryTracking(id);
+  const live:any = useDeliveryTracking(id);
   if (isLoading) return <div className="p-6">Loading...</div>;
   if (!data?.delivery) return <div className="p-6">Delivery not found</div>;
 
-  const d = data.delivery;
+  const d:any = data.delivery;
   const pickup = { lat: d.pickup.latitude, lng: d.pickup.longitude };
   const dropoff = { lat: d.dropoff.latitude, lng: d.dropoff.longitude };
   const driver = live ? { lat: live.latitude, lng: live.longitude } 

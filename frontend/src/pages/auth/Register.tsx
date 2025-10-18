@@ -50,8 +50,8 @@ export default function Register() {
     defaultValues: { role: 'driver' }
   });
 
-  const currentForm = selectedRole === 'customer' ? customerForm : driverForm;
-  const { register, handleSubmit, formState: { errors }, reset } = currentForm;
+  // const currentForm = selectedRole === 'customer' ? customerForm : driverForm;
+  // const { register, handleSubmit, formState: { errors }, reset } = currentForm;
 
   const onSubmit = async (data: CustomerForm | DriverForm) => {
     setIsSubmitting(true);

@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
@@ -11,7 +11,7 @@ export default function DriverDashboard() {
   const qc = useQueryClient();
   const socket = useSocket();
   const user = useAuth(s => s.user);
-  const [notifications, setNotifications] = useState<any[]>([]);
+  // const [notifications, setNotifications] = useState<any[]>([]);
 
   const { data, isLoading } = useQuery({
     queryKey: ['driver-active'],
@@ -30,7 +30,7 @@ export default function DriverDashboard() {
     
     socket.on('delivery-assigned', (data) => {
       toast.success('🎯 New delivery assigned to you!');
-      setNotifications(prev => [...prev, { ...data, timestamp: Date.now() }]);
+      // setNotifications(prev => [...prev, { ...data, timestamp: Date.now() }]);
       qc.invalidateQueries({ queryKey: ['driver-active'] });
     });
 

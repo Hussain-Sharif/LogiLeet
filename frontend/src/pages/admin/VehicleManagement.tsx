@@ -23,12 +23,16 @@ type VehicleForm = z.infer<typeof vehicleSchema>;
 
 export default function VehicleManagement() {
   const [showAddForm, setShowAddForm] = useState(false);
-  const [editingVehicle, setEditingVehicle] = useState<any>(null);
+  // const [editingVehicle, setEditingVehicle] = useState<any>(null);
   const qc = useQueryClient();
 
   const { data, isLoading } = useQuery({
     queryKey: ['admin-vehicles-all'],
-    queryFn: async () => (await api.get('/vehicles')).data.data
+    queryFn: async () => {
+      const res= await api.get('/vehicles');
+      console.log("Fetching all vehicles",res.data.data);
+      return res.data.data
+    }
   });
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<VehicleForm>({
@@ -46,16 +50,19 @@ export default function VehicleManagement() {
     onError: (e: any) => toast.error(e.response?.data?.message || 'Failed to add vehicle')
   });
 
-  const updateMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: Partial<VehicleForm> }) =>
-      (await api.put(`/vehicles/${id}`, data)).data,
-    onSuccess: () => {
-      toast.success('Vehicle updated successfully');
-      qc.invalidateQueries({ queryKey: ['admin-vehicles-all'] });
-      setEditingVehicle(null);
-    },
-    onError: (e: any) => toast.error(e.response?.data?.message || 'Failed to update vehicle')
-  });
+  // const updateMutation = useMutation({
+  //   mutationFn: async ({ id, data }: { id: string; data: Partial<VehicleForm> }) =>{
+  //     console.log("For editing vehicle", data,id);
+  //     return (await api.put(`/vehicles/${id}`, data)).data
+  //   }
+  //     ,
+  //   onSuccess: () => {
+  //     toast.success('Vehicle updated successfully');
+  //     qc.invalidateQueries({ queryKey: ['admin-vehicles-all'] });
+  //     setEditingVehicle(null);
+  //   },
+  //   onError: (e: any) => toast.error(e.response?.data?.message || 'Failed to update vehicle')
+  // });
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => (await api.delete(`/vehicles/${id}`)).data,
@@ -66,15 +73,15 @@ export default function VehicleManagement() {
     onError: (e: any) => toast.error(e.response?.data?.message || 'Failed to delete vehicle')
   });
 
-  const assignDriverMutation = useMutation({
-    mutationFn: async ({ vehicleId, driverId }: { vehicleId: string; driverId: string }) =>
-      (await api.post(`/vehicles/${vehicleId}/assign-driver`, { driverId })).data,
-    onSuccess: () => {
-      toast.success('Driver assigned successfully');
-      qc.invalidateQueries({ queryKey: ['admin-vehicles-all'] });
-    },
-    onError: (e: any) => toast.error(e.response?.data?.message || 'Failed to assign driver')
-  });
+  // const assignDriverMutation = useMutation({
+  //   mutationFn: async ({ vehicleId, driverId }: { vehicleId: string; driverId: string }) =>
+  //     (await api.post(`/vehicles/${vehicleId}/assign-driver`, { driverId })).data,
+  //   onSuccess: () => {
+  //     toast.success('Driver assigned successfully');
+  //     qc.invalidateQueries({ queryKey: ['admin-vehicles-all'] });
+  //   },
+  //   onError: (e: any) => toast.error(e.response?.data?.message || 'Failed to assign driver')
+  // });
 
   const unassignDriverMutation = useMutation({
     mutationFn: async (vehicleId: string) =>
@@ -87,7 +94,7 @@ export default function VehicleManagement() {
   });
 
   const onSubmit = (formData: VehicleForm) => {
-    const data = {
+    const data:any = {
       ...formData,
       registrationExpiry: new Date(formData.registrationExpiry),
       insuranceExpiry: new Date(formData.insuranceExpiry)
@@ -243,7 +250,9 @@ export default function VehicleManagement() {
               </tr>
             </thead>
             <tbody>
-              {vehicles.map((vehicle: any) => (
+              {vehicles.map((vehicle: any) => {
+                console.log("Each Vehicle:",vehicle)
+                return (
                 <tr key={vehicle._id} className="border-b hover:bg-gray-50">
                   <td className="p-4">
                     <div>
@@ -270,7 +279,7 @@ export default function VehicleManagement() {
                   <td className="p-4">
                     {vehicle.currentDriver ? (
                       <div>
-                        <div className="font-medium">{vehicle.currentDriver.name}</div>
+                        <div className="font-medium">{vehicle.currentDriver?.name}</div>
                         <button
                           onClick={() => unassignDriverMutation.mutate(vehicle._id)}
                           className="text-red-600 text-sm hover:text-red-700"
@@ -285,11 +294,15 @@ export default function VehicleManagement() {
                   <td className="p-4">
                     <div className="flex gap-2">
                       <button
-                        onClick={() => setEditingVehicle(vehicle)}
+                        // onClick={() => {
+                        //   setEditingVehicle(vehicle);
+                          
+                        // }}
                         className="text-blue-600 hover:text-blue-700 text-sm"
                       >
                         Edit
                       </button>
+                      
                       <button
                         onClick={() => deleteMutation.mutate(vehicle._id)}
                         className="text-red-600 hover:text-red-700 text-sm"
@@ -299,7 +312,8 @@ export default function VehicleManagement() {
                     </div>
                   </td>
                 </tr>
-              ))}
+              )
+              })}
             </tbody>
           </table>
         </div>
